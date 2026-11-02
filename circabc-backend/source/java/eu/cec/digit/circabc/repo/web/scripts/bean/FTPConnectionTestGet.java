@@ -28,6 +28,10 @@ public class FTPConnectionTestGet extends DeclarativeWebScript {
 
     private CurrentUserPermissionCheckerService currentUserPermissionCheckerService;
 
+    /**
+     * Tests an FTPS (explicit TLS) connection to the given server.
+     * Credentials and data are transmitted over an encrypted channel.
+     */
     public static int testConnection(
             String host, int port, String username, String password, String path) {
 
@@ -48,29 +52,31 @@ public class FTPConnectionTestGet extends DeclarativeWebScript {
 
         } catch (NumberFormatException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection, port number is wrong", e);
+                logger.error("Problem during testing FTPS connection, port number is wrong", e);
             }
         } catch (IllegalStateException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection, illegal state", e);
+                logger.error("Problem during testing FTPS connection, illegal state", e);
             }
         } catch (IOException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection, i/o exception", e);
+                logger.error("Problem during testing FTPS connection, i/o exception (TLS handshake failure?)", e);
             }
         } catch (FTPIllegalReplyException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection, illegal reply from FTP server", e);
+                logger.error("Problem during testing FTPS connection, illegal reply from FTP server", e);
             }
         } catch (FTPException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection, ftp issue -> wrong path ?", e);
+                logger.error("Problem during testing FTPS connection, ftp issue -> wrong path ?", e);
             }
             testResult = -1;
         } catch (FTPDataTransferException | FTPListParseException | FTPAbortedException e) {
             if (logger.isErrorEnabled()) {
-                logger.error("Problem during testing FTP connection", e);
+                logger.error("Problem during testing FTPS connection", e);
             }
+        } finally {
+            ftpTest.logout();
         }
 
         return testResult;

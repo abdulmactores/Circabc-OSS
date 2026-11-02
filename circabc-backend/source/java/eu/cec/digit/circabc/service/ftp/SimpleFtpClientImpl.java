@@ -21,8 +21,15 @@ import it.sauronsoftware.ftp4j.*;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.File;
 import java.io.IOException;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.security.KeyStoreException;
 
 /** @author beaurpi */
 public class SimpleFtpClientImpl implements SimpleFtpClient {
@@ -50,6 +57,20 @@ public class SimpleFtpClientImpl implements SimpleFtpClient {
         this.path = path;
 
         ftpClient = new FTPClient();
+
+        // Configure explicit TLS (FTPES) so credentials and data are encrypted
+        try {
+            SSLContext sslContext = SSLContext.getInstance("TLS");
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(
+                    TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init((KeyStore) null);
+            sslContext.init(null, tmf.getTrustManagers(), null);
+            SSLSocketFactory sslSocketFactory = sslContext.getSocketFactory();
+            ftpClient.setSSLSocketFactory(sslSocketFactory);
+        } catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
+            throw new IOException("Failed to initialise TLS for FTPS connection", e);
+        }
+        ftpClient.setSecurity(FTPClient.SECURITY_FTPES);
 
         ftpClient.connect(host, port);
         ftpClient.setPassive(true);
