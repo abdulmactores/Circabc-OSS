@@ -2,11 +2,13 @@ package eu.cec.digit.circabc.repo.app;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.owasp.esapi.ESAPI;
+import org.owasp.html.HtmlPolicyBuilder;
+import org.owasp.html.PolicyFactory;
 import org.owasp.validator.html.*;
 import org.springframework.web.util.HtmlUtils;
 
 import java.io.File;
-import java.util.regex.Pattern;
 
 public class SecurityService {
 
@@ -21,6 +23,40 @@ public class SecurityService {
     private Policy policy;
     private AntiSamy antiSamy;
 
+    /**
+     * Allowlist-based HTML sanitizer built with the OWASP Java HTML Sanitizer.
+     * Permits common safe formatting / structural tags and their typical
+     * attributes while stripping everything else (scripts, event handlers,
+     * javascript: URIs, etc.).
+     */
+    private static final PolicyFactory HTML_SANITIZER_POLICY = new HtmlPolicyBuilder()
+            // Block-level elements
+            .allowElements(
+                    "p", "div", "span", "br", "hr",
+                    "h1", "h2", "h3", "h4", "h5", "h6",
+                    "ul", "ol", "li", "dl", "dt", "dd",
+                    "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
+                    "blockquote", "pre", "code",
+                    "strong", "em", "b", "i", "u", "s", "sub", "sup",
+                    "a", "img",
+                    "abbr", "cite", "q")
+            // Allow safe attributes
+            .allowAttributes("class", "id", "title", "lang", "dir").globally()
+            .allowAttributes("href").onElements("a")
+            .allowAttributes("src", "alt", "width", "height").onElements("img")
+            .allowAttributes("colspan", "rowspan", "scope", "headers").onElements("th", "td")
+            .allowAttributes("align", "valign").onElements(
+                    "table", "thead", "tbody", "tfoot", "tr", "th", "td")
+            .allowAttributes("border", "cellpadding", "cellspacing", "summary").onElements("table")
+            .allowAttributes("span").onElements("col", "colgroup")
+            .allowAttributes("start", "type").onElements("ol")
+            .allowAttributes("cite").onElements("blockquote", "q")
+            .allowAttributes("target").onElements("a")
+            // Only allow safe URL protocols
+            .allowUrlProtocols("http", "https", "mailto")
+            .requireRelNofollowOnLinks()
+            .toFactory();
+
     private void init() {
         if (policy == null) {
             try {
@@ -34,55 +70,36 @@ public class SecurityService {
         }
     }
 
+    /**
+     * Sanitize the input using an allowlist-based OWASP Java HTML Sanitizer.
+     * Before sanitizing, the ESAPI canonicalize step is applied to defeat
+     * double-encoding bypass attacks.
+     *
+     * <p>This replaces the former regex blocklist approach which was fragile
+     * and missed many XSS vectors (onerror, onmouseover, onclick, etc.).</p>
+     */
     private String stripXSS(String value) {
-        if (value != null) {
-            // value = ESAPI.encoder().canonicalize(value);
-            // Avoid anything between script tags
-            Pattern scriptPattern = Pattern.compile("<script>(.*?)</script>", Pattern.CASE_INSENSITIVE);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid anything in a src='...' type of expression
-            // ----------------------------
-            // disable for compatibility with  content message in the forum
-            // scriptPattern = Pattern.compile("src[\r\n]*=[\r\n]*\\\'(.*?)\\\'", Pattern.CASE_INSENSITIVE
-            // | Pattern.MULTILINE | Pattern.DOTALL);
-            // value = scriptPattern.matcher(value).replaceAll("");
-            // Remove any lonesome </script> tag
-            scriptPattern = Pattern.compile("</script>", Pattern.CASE_INSENSITIVE);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Remove any lonesome <script ...> tag
-            scriptPattern =
-                    Pattern.compile(
-                            "<script(.*?)>", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid eval(...) expressions
-            scriptPattern =
-                    Pattern.compile(
-                            "eval\\((.*?)\\)", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid expression(...) expressions
-            scriptPattern =
-                    Pattern.compile(
-                            "expression\\((.*?)\\)",
-                            Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid javascript:... expressions
-            scriptPattern = Pattern.compile("javascript:", Pattern.CASE_INSENSITIVE);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid vbscript:... expressions
-            scriptPattern = Pattern.compile("vbscript:", Pattern.CASE_INSENSITIVE);
-            value = scriptPattern.matcher(value).replaceAll("");
-            // Avoid onload= expressions
-            scriptPattern =
-                    Pattern.compile(
-                            "onload(.*?)=", Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-            value = scriptPattern.matcher(value).replaceAll("");
-
-            scriptPattern =
-                    Pattern.compile(
-                            "data:text/html;base64",
-                            Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-            value = scriptPattern.matcher(value).replaceAll("");
+        if (value == null) {
+            return null;
         }
+
+        // Canonicalize to defeat double-encoding / mixed-encoding bypass attacks
+        try {
+            value = ESAPI.encoder().canonicalize(value);
+        } catch (Exception e) {
+            // If canonicalization fails (e.g. intrusion detected), log and
+            // continue with the original value – the HTML sanitizer below
+            // will still strip dangerous content.
+            if (logger.isWarnEnabled()) {
+                logger.warn("ESAPI canonicalize failed, proceeding with raw value", e);
+            }
+        }
+
+        // Apply the allowlist-based HTML sanitizer – everything not explicitly
+        // allowed (scripts, event-handler attributes, javascript: URIs, etc.)
+        // is automatically removed.
+        value = HTML_SANITIZER_POLICY.sanitize(value);
+
         return value;
     }
 
@@ -125,7 +142,7 @@ public class SecurityService {
      */
     public String getCleanHTML(String value, Boolean permissiveHtml) {
 
-        Boolean checkPermissiveHtml = (permissiveHtml == null ? false : permissiveHtml);
+        boolean checkPermissiveHtml = (permissiveHtml != null && permissiveHtml);
 
         String result = stripXSS(value);
 
