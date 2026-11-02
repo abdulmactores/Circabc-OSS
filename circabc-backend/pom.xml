@@ -151,133 +151,14 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jxr-plugin</artifactId>
 			</plugin>
-			<plugin>
-				<artifactId>maven-install-plugin</artifactId>
-				<version>2.5.2</version>
-				<executions>
-					<execution>
-						<id>install-artifacts.calendartag-1.0.1</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/calendartag-1.0.1.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>calendartag</artifactId>
-							<version>1.0.1</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.ecas-weblogic-12.2.1-authprovider-4.26.3</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/ecas-weblogic-12.2.1-authprovider-4.26.3.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>ecas-weblogic-12.2.1-authprovider</artifactId>
-							<version>4.26.3</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.ftp4j-1.5.1</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/ftp4j-1.5.1.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>ftp4j</artifactId>
-							<version>1.5.1</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.opencsv-1.8</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/opencsv-1.8.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>opencsv</artifactId>
-							<version>1.8</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.AutonomyACIAPI-4.9.2</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/AutonomyACIAPI-4.9.2.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>AutonomyACIAPI</artifactId>
-							<version>4.9.2</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.truezip-6.6</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/truezip-6.6.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>truezip</artifactId>
-							<version>6.6</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-
-					<execution>
-						<id>install-artifacts.ipm-ws-client-1.0.0</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/ipm-ws-client-1.0.0.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>ipm-ws-client</artifactId>
-							<version>1.0.0</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-					<execution>
-						<id>install-artifacts.ical4j-1.0-rc1</id>
-						<phase>clean</phase>
-						<goals>
-							<goal>install-file</goal>
-						</goals>
-						<configuration>
-							<file>lib/ical4j-1.0-rc1.jar</file>
-							<groupId>eu.europa.ec.circabc</groupId>
-							<artifactId>ical4j</artifactId>
-							<version>1.0-rc1</version>
-							<packaging>jar</packaging>
-						</configuration>
-					</execution>
-
-				</executions>
-			</plugin>
+			<!--
+				MIGRATION NOTE: Removed maven-install-plugin:install-file executions
+				and system-scoped dependencies. The eight proprietary/internal JARs
+				(calendartag, ecas-weblogic-authprovider, ftp4j, opencsv,
+				AutonomyACIAPI, truezip, ipm-ws-client, ical4j) are now declared
+				as normal dependencies and MUST be published to a private artifact
+				repository (Nexus/Artifactory) under groupId eu.europa.ec.circabc.
+			-->
 
 			<plugin>
 				<artifactId>maven-antrun-plugin</artifactId>
