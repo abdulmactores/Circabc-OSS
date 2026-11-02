@@ -562,8 +562,8 @@
 	</dependencies>
 
 	<properties>
-		<compileSource>1.7</compileSource>
-		<compileTarget>1.7</compileTarget>
+		<compileSource>21</compileSource>
+		<compileTarget>21</compileTarget>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<alfrescoVersion>4.2.4.15.r112167-b152.6069</alfrescoVersion>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
