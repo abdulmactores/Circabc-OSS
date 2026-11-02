@@ -26,17 +26,20 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Random;
 import java.util.TimeZone;
 
 public class IamWSClientImpl implements IamWSClient {
 
-    private static final int MAX_NEXT_INT = 999999999;
+    private static final int NONCE_BYTE_LENGTH = 16;
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private static final int CONNECTION_TIMEOUT_10_S = 10000;
 
@@ -110,34 +113,24 @@ public class IamWSClientImpl implements IamWSClient {
     private String user;
     private String password;
 
-    private static String getNonce() {
-        return String.valueOf(new Random().nextInt(MAX_NEXT_INT));
+    private static byte[] getNonceBytes() {
+        byte[] nonce = new byte[NONCE_BYTE_LENGTH];
+        SECURE_RANDOM.nextBytes(nonce);
+        return nonce;
     }
 
-    private static String calculatePasswordDigest(String nonce, String created, String password) {
-        String encoded = null;
+    private static String calculatePasswordDigest(byte[] nonceBytes, String created, String password) {
         try {
-            String pass = hexEncode(nonce) + created + password;
-            MessageDigest md = MessageDigest.getInstance("SHA1");
-            md.update(pass.getBytes());
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            md.update(nonceBytes);
+            md.update(created.getBytes(StandardCharsets.UTF_8));
+            md.update(password.getBytes(StandardCharsets.UTF_8));
             byte[] encodedPassword = md.digest();
 
-            encoded = new String(Base64.encodeBase64((encodedPassword)));
+            return new String(Base64.encodeBase64(encodedPassword));
         } catch (NoSuchAlgorithmException ex) {
-
+            throw new IllegalStateException("SHA-256 algorithm not available in the JVM", ex);
         }
-
-        return encoded;
-    }
-
-    private static String hexEncode(String in) {
-        StringBuilder sb = new StringBuilder("");
-        for (int i = 0; i < (in.length() - 2) + 1; i = i + 2) {
-            int c = Integer.parseInt(in.substring(i, i + 2), 16);
-            char chr = (char) c;
-            sb.append(chr);
-        }
-        return sb.toString();
     }
 
     public String getServiceUrl() {
@@ -179,10 +172,10 @@ public class IamWSClientImpl implements IamWSClient {
         httpClient.getParams().setParameter("http.useragent", "IAM Web Service Client");
         PostMethod methodPost = new PostMethod(serviceUrl);
 
-        String nonce = getNonce();
-        String nonceEncoded = new String(Base64.encodeBase64(hexEncode(nonce).getBytes()));
+        byte[] nonceBytes = getNonceBytes();
+        String nonceEncoded = new String(Base64.encodeBase64(nonceBytes));
         String created = DATE_FORMAT.get().format(new Date());
-        String digest = calculatePasswordDigest(nonce, created, password);
+        String digest = calculatePasswordDigest(nonceBytes, created, password);
         String data =
                 String.format(dataTemplate, user, digest, nonceEncoded, created, userID, themeID, roleID);
 

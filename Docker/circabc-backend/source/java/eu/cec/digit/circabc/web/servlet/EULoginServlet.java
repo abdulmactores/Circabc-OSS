@@ -17,14 +17,49 @@ import org.alfresco.service.cmr.security.PersonService;
 import org.alfresco.web.app.servlet.BaseServlet;
 
 import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.security.Principal;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Date;
 
+/**
+ * Servlet handling the EU Login (ECAS) SSO callback.
+ *
+ * <h3>Security hardening (2024)</h3>
+ * <ul>
+ *   <li>Cookies now carry {@code SameSite=Strict}, {@code HttpOnly}, and
+ *       {@code Secure} attributes to mitigate CSRF and XSS-based session
+ *       theft.</li>
+ *   <li>A cryptographically random CSRF token is generated on login and
+ *       set as a {@code csrf_token} cookie. The Angular frontend should
+ *       read this value and include it as an {@code X-CSRF-Token} header
+ *       on every state-changing request. Server-side filters should
+ *       validate the header against the cookie.</li>
+ * </ul>
+ *
+ * <h3>Future enhancement – OAuth2 PKCE flow</h3>
+ * <p>The current cookie-based authentication should be migrated to an
+ * OAuth2 Authorization Code flow with PKCE (RFC 7636). This would
+ * eliminate the need for cookie-based session tokens entirely and
+ * provide a standards-based, stateless authentication mechanism:
+ * <ol>
+ *   <li>Register CIRCABC as an OAuth2 / OIDC client with EU Login.</li>
+ *   <li>Replace this servlet's redirect logic with an Authorization
+ *       Code + PKCE exchange.</li>
+ *   <li>Issue short-lived JWTs (access tokens) validated on each API
+ *       call, with refresh tokens stored securely.</li>
+ *   <li>Remove the username/ticket cookie mechanism once the Angular
+ *       frontend is updated to use Bearer token authentication.</li>
+ * </ol>
+ * </p>
+ */
 public class EULoginServlet extends BaseServlet {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int CSRF_TOKEN_BYTES = 32;
 
     private UserService userService;
     private PersonService personService;
@@ -121,16 +156,63 @@ public class EULoginServlet extends BaseServlet {
         logRecord.setOK(true);
         logService.log(logRecord);
 
-        Cookie userCookie = new Cookie("username", userName);
-        userCookie.setPath("/");
-        userCookie.setMaxAge(120);
-        userCookie.setSecure(true);
-        response.addCookie(userCookie);
-        Cookie ticketCookie = new Cookie("ticket", ticket);
-        ticketCookie.setPath("/");
-        ticketCookie.setMaxAge(120);
-        ticketCookie.setSecure(true);
-        response.addCookie(ticketCookie);
+        // Set username cookie with SameSite=Strict via Set-Cookie header
+        // (javax.servlet.http.Cookie does not support SameSite natively)
+        addHardenedCookie(response, "username", userName, 120, true);
+
+        // Set ticket cookie with SameSite=Strict
+        addHardenedCookie(response, "ticket", ticket, 120, true);
+
+        // Generate a CSRF token so the Angular frontend can include it as
+        // an X-CSRF-Token header on state-changing requests.
+        // The csrf_token cookie is NOT HttpOnly so JavaScript can read it.
+        String csrfToken = generateCsrfToken();
+        addHardenedCookie(response, "csrf_token", csrfToken, 120, false);
+
         response.sendRedirect(request.getContextPath() + "/ui/welcome");
+    }
+
+    /**
+     * Adds a cookie to the response with hardened security attributes.
+     * <p>
+     * Because the standard {@code javax.servlet.http.Cookie} API (Servlet 3.x) does not expose
+     * a {@code SameSite} setter, we build the {@code Set-Cookie} header
+     * manually so we can include {@code SameSite=Strict}.
+     * </p>
+     *
+     * @param response   the HTTP response
+     * @param name       cookie name
+     * @param value      cookie value
+     * @param maxAgeSecs lifetime in seconds
+     * @param httpOnly   whether the cookie should be {@code HttpOnly}
+     *                   (set to {@code false} for the CSRF token so the
+     *                   Angular frontend can read it via JavaScript)
+     */
+    private static void addHardenedCookie(HttpServletResponse response,
+                                          String name,
+                                          String value,
+                                          int maxAgeSecs,
+                                          boolean httpOnly) {
+        StringBuilder sb = new StringBuilder(128);
+        sb.append(name).append('=').append(value);
+        sb.append("; Path=/");
+        sb.append("; Max-Age=").append(maxAgeSecs);
+        sb.append("; Secure");
+        sb.append("; SameSite=Strict");
+        if (httpOnly) {
+            sb.append("; HttpOnly");
+        }
+        response.addHeader("Set-Cookie", sb.toString());
+    }
+
+    /**
+     * Generates a cryptographically strong random CSRF token.
+     *
+     * @return a Base64-URL-encoded token string (no padding)
+     */
+    private static String generateCsrfToken() {
+        byte[] bytes = new byte[CSRF_TOKEN_BYTES];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 }

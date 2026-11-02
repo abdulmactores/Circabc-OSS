@@ -18,6 +18,11 @@ import java.util.Map.Entry;
 
 public class CircabcDaoServiceImpl {
 
+    private static final Set<String> ALLOWED_ORDER_COLUMNS = Set.of(
+            "firstName", "lastName", "email", "userId", "profileTitle", "userName");
+
+    private static final Set<String> ALLOWED_ORDER_TYPES = Set.of("ASC", "DESC");
+
     private Codec codec = null;
     private SqlSessionTemplate sqlSessionTemplate = null;
 
@@ -490,15 +495,25 @@ public class CircabcDaoServiceImpl {
             params.put("text", "%" + sanitizeSQL(text.toLowerCase()) + "%");
         }
 
-        if (orderBy == null) {
-            params.put("orderByColumn", "firstName");
-            params.put("orderByType", "ASC");
-        } else if (orderBy.isEmpty()) {
+        if (orderBy == null || orderBy.isEmpty()) {
             params.put("orderByColumn", "firstName");
             params.put("orderByType", "ASC");
         } else {
-            params.put("orderByColumn", orderBy.split("_")[0]);
-            params.put("orderByType", orderBy.split("_")[1]);
+            String[] parts = orderBy.split("_");
+            String column = (parts.length > 0) ? parts[0] : "firstName";
+            String type = (parts.length > 1) ? parts[1].toUpperCase() : "ASC";
+
+            if (!ALLOWED_ORDER_COLUMNS.contains(column)) {
+                throw new IllegalArgumentException(
+                        "Invalid order column: " + column);
+            }
+            if (!ALLOWED_ORDER_TYPES.contains(type)) {
+                throw new IllegalArgumentException(
+                        "Invalid order type: " + type);
+            }
+
+            params.put("orderByColumn", column);
+            params.put("orderByType", type);
         }
 
         @SuppressWarnings("unchecked")
